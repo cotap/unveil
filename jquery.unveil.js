@@ -15,13 +15,32 @@
         retina = window.devicePixelRatio > 1,
         attrib = retina ? "data-src-retina" : "data-src",
         images = this,
+        withRetry = opts.withRetry || false,
         loaded;
 
-    this.one("unveil", function() {
+    var listen = (function(event, callback) {
+      return withRetry ? this.on(event, callback) : this.once(event, callback);
+    }).bind(this);
+
+    listen("unveil", function() {
       if (opts.custom) return;
       var $img = $(this), src = $img.attr(attrib);
       src = src || $img.attr("data-src");
-      if (src) $img.attr("src", src).trigger("unveiled");
+      if (src) {
+        if ($img.prop("tagName") === "IMG") {
+          $img.attr("src", src).trigger("unveiled");
+        } else {
+          $("<img/>").attr("src", src)
+            .load(function() {
+              $(this).remove(); // prevent memory leaks
+              $img.css("background-image", "url("+ src +")");
+              $img.trigger("unveil:bg:load:complete");
+            })
+            .error(function() {
+              $img.trigger("unveil:bg:error");
+            });
+        }
+      }
     });
 
     function unveil() {
